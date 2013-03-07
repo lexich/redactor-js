@@ -233,7 +233,7 @@ var RLANG = {
 						'<input type="file" id="redactor_file" name="file" />' +
 					'</div>' +
 					'<div id="redactor_tab2" class="redactor_tab" style="display: none;">' +
-						'<p>' + RLANG.folder + ': <span id="redactor_folder_container_path">/</span></p>'+
+						'<p>' + RLANG.folder + ': <span id="redactor_folder_container_path" data-value="/">/</span></p>'+
             '<div id="redactor_image_box"></div>' +
 					'</div>' +
 				'</form>' +
@@ -2443,31 +2443,31 @@ var RLANG = {
     },
 		curPath:function(val){
 		  if(val){
-        val = this.processPath(val)
+        val = this.processPath(val);
 		    this.$el.data("image-value",val);
-        $("#redactor_folder_container_path").text(val);
 		  } else{
-        return this.processPath(this.$el.data("image-value"));
+		    return this.processPath(this.$el.data("image-value"));
 		  }
 		},
 		hookGetJson:function(path){
 		  var sep = path.indexOf("?")==-1 ? "?" : "&";
 		  return path + sep + "folder=" + this.curPath();
 		},
-    renderFolder__createLink : function(path, text){
-      var $link = $('<a href="javascript:void(0);" data-value="' + path + '">');
+    renderFolder_createLink: function(path, text){
+      var $link = $('<a href="javascript:void(0); data-value=' + path + '">');
       $link.html('<div class="redactor_folder"><p class="redactor_folder_text">' + text + '</p></div>');
       $link.click($.proxy(function(e){
         e.preventDefault();
-        this.curPath( path);
+        this.curPath(path);
         this.imageHandler();
       },this));
       return $link;
     },
-    renderFolder: function(key, val, $separator){
-      if(val.type != "dir") return false;
-      var name = val.folderName || val.folder;
-      $separator.before(this.renderFolder__createLink(val.folder, name));
+    renderFolder:function(data,$separator){
+      if(data.type != 'dir') return false;
+      var path = this.curPath() + data.folder + "/";
+      var folderName = data.folderName || data.folder;
+      $separator.before(this.renderFolder_createLink(path, folderName));
       return true;
     },
     imageHandler: function()
@@ -2477,31 +2477,18 @@ var RLANG = {
       {
         $('#redactor_image_box').empty();
         $.getJSON(this.hookGetJson(this.opts.imageGetJson), $.proxy(function(data) {
-          var folders = {};
-          var z = 0;
-
-          // folders
-          /*
-          $.each(data, $.proxy(function(key, val)
-          {
-            if (typeof val.folder !== 'undefined')
-            {
-              z++;
-              folders[val.folder] = z;
-            }
-
-          }, this));
-          */
           $("#redactor_folder_container_path").text(this.curPath());
-          var folderclass = false;
-          var $container = $('#redactor_image_box');
+          var folders = {};
           var $separator = $("<hr/>");
-          $container.prepend($separator);
-          $separator.before(this.renderFolder__createLink("/","..."));
-          $separator.before(this.renderFolder__createLink(this.backCurPath(), "&lArr;"));
+          $('#redactor_image_box').append($separator);
+
+          $separator.before(this.renderFolder_createLink("/","..."));
+          $separator.before(this.renderFolder_createLink(this.backCurPath(), "&lArr;"));
+
+          var folderclass = false;
           $.each(data, $.proxy(function(key, val)
           {
-            if( this.renderFolder(key, val, $separator)) return;
+            if(this.renderFolder(val, $separator)) return;
             // title
             var thumbtitle = '';
             if (typeof val.title !== 'undefined')
@@ -2525,29 +2512,6 @@ var RLANG = {
 
 
           }, this));
-
-          // folders
-           /*
-           if (!$.isEmptyObject(folders))
-           {
-             $('.redactorfolder').hide();
-             $(folderclass).show();
-
-             var onchangeFunc = function(e)
-             {
-               $('.redactorfolder').hide();
-               $('.redactorfolder' + $(e.target).val()).show();
-             }
-
-             var select = $('<select id="redactor_image_box_select">');
-             $.each(folders, function(k,v){
-              select.append($('<option value="' + v + '">' + k + '</option>'));
-             });
-             $('#redactor_image_box').before(select);
-             select.change(onchangeFunc);
-           }*/
-
-
         }, this));
       }
       else
@@ -3296,107 +3260,115 @@ var RLANG = {
 	// Functionality
 	Construct.prototype = {
 		init: function()
-		{	
-			if (!$.browser.msie) 
-			{	
-				this.droparea = $('<div class="redactor_droparea"></div>');
-				this.dropareabox = $('<div class="redactor_dropareabox">' + this.opts.text + '</div>');	
-				this.dropalternative = $('<div class="redactor_dropalternative">' + this.opts.atext + '</div>');
-				
-				this.droparea.append(this.dropareabox);
-				
-				this.$el.before(this.droparea);
-				this.$el.before(this.dropalternative);
-
-				// drag over
-				this.dropareabox.bind('dragover', $.proxy(function() { return this.ondrag(); }, this));
-				
-				// drag leave
-				this.dropareabox.bind('dragleave', $.proxy(function() { return this.ondragleave(); }, this));
-		
-				var uploadProgress = $.proxy(function(e) 
-				{ 
-					var percent = parseInt(e.loaded / e.total * 100, 10);
-					this.dropareabox.text('Loading ' + percent + '%');
-					
-				}, this);
-		
-				var xhr = jQuery.ajaxSettings.xhr();
-				
-				if (xhr.upload)
-				{
-					xhr.upload.addEventListener('progress', uploadProgress, false);
-				}
-				
-				var provider = function () { return xhr; };
-		
-				// drop
-				this.dropareabox.get(0).ondrop = $.proxy(function(event)
-				{
-					event.preventDefault();
-					
-					this.dropareabox.removeClass('hover').addClass('drop');
-					
-					var file = event.dataTransfer.files[0];
-					var fd = new FormData();
-
-					// append hidden fields
-					if (this.opts.uploadFields !== false && typeof this.opts.uploadFields === 'object')
-					{
-						$.each(this.opts.uploadFields, $.proxy(function(k,v)
-						{					
-							if (v.indexOf('#') === 0)
-							{
-								v = $(v).val();
-							}
-							
-							fd.append(k, v);
-					
-						}, this));
-					}	
-					
-					// append file data
-					fd.append('file', file);
-					
-
-					$.ajax({
-						dataType: 'html',
-						url: this.opts.url,
-						data: fd,
-						xhr: provider,
-						cache: false,
-						contentType: false,
-						processData: false,
-						type: 'POST',
-						success: $.proxy(function(data)
-						{
-							if (this.opts.success !== false)
-							{
-								this.opts.success(data);
-							}
-							
-							if (this.opts.preview === true)
-							{
-								this.dropareabox.html(data);
-							}
-							
-						}, this)
-					});
-
-
-				}, this);
-			}
-		},
-		ondrag: function()
 		{
-			this.dropareabox.addClass('hover');
-			return false;
+			if ($.browser.msie) return;
+
+      this.droparea = $('<div class="redactor_droparea"></div>');
+      this.dropareabox = $('<div class="redactor_dropareabox">' + this.opts.text + '</div>');
+      this.dropalternative = $('<div class="redactor_dropalternative">' + this.opts.atext + '</div>');
+
+      this.droparea.append(this.dropareabox);
+      this.$el.before(this.droparea);
+      this.$el.before(this.dropalternative);
+
+      // drag over
+      this.dropareabox.bind('dragover', $.proxy(this.ondrag, this));
+      // drag leave
+      this.dropareabox.bind('dragleave', $.proxy(this.ondragleave, this));
+
+
+      this.xhr = jQuery.ajaxSettings.xhr();
+      if (this.xhr.upload)
+      {
+        this.xhr.upload.addEventListener('progress', $.proxy(this.uploadProgress, this), false);
+      }
+      // drop
+      this.dropareabox.get(0).ondrop = $.proxy(this.ondrop, this);
+
 		},
-		ondragleave: function()
-		{
-			this.dropareabox.removeClass('hover');
-			return false;
-		}
+    uploadProgress:function(e)
+    {
+      var percent = parseInt(e.loaded / e.total * 100, 10);
+      this.dropareabox.text('Loading ' + percent + '%');
+    },
+
+    ondrop:function(event)
+    {
+      event.preventDefault();
+
+      this.dropareabox.removeClass('hover').addClass('drop');
+
+      var files = event.dataTransfer.files;
+      var _this = this;
+      var ctxHolder = [];
+
+      var callback = function(data){
+        ctxHolder[ctxHolder.length] = data;
+        if(ctxHolder.length < files.length){
+          _this.uploadFile(ctxHolder.length, files, provider, callback);
+        } else {
+          $(ctxHolder).each(function(k, ctx){
+            if (_this.opts.success !== false)
+            {
+              _this.opts.success(ctx);
+            }
+            if (_this.opts.preview === true)
+            {
+              _this.dropareabox.append(ctx);
+            }
+          });
+          ctxHolder = [];
+        }
+      };
+      var provider = function () { return _this.xhr; };
+      _this.uploadFile(ctxHolder.length, files, provider, callback);
+
+    },
+    ondrag: function()
+    {
+      this.dropareabox.addClass('hover');
+      return false;
+    },
+    ondragleave: function()
+    {
+      this.dropareabox.removeClass('hover');
+      return false;
+    },
+    uploadFile: function(index, files, provider, successFunc){
+      var file = files[index];
+      var fd = new FormData();
+
+      // append hidden fields
+      if (this.opts.uploadFields !== false && typeof this.opts.uploadFields === 'object')
+      {
+        $.each(this.opts.uploadFields, $.proxy(function(k,v)
+        {
+          if (v.indexOf('#') === 0)
+          {
+            v = $(v).val();
+          }
+
+          fd.append(k, v);
+
+        }, this));
+      }
+
+      // append file data
+      fd.append('file', file);
+
+
+      $.ajax({
+        dataType: 'html',
+        url: this.opts.url,
+        data: fd,
+        xhr: provider,
+        cache: false,
+        contentType: false,
+        processData: false,
+        type: 'POST',
+        success: $.proxy(successFunc, this)
+      });
+    }
 	};
 
 })(jQuery);
