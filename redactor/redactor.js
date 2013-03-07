@@ -233,7 +233,7 @@ var RLANG = {
 						'<input type="file" id="redactor_file" name="file" />' +
 					'</div>' +
 					'<div id="redactor_tab2" class="redactor_tab" style="display: none;">' +
-						'<p>' + RLANG.folder + ': <span id="redactor_folder_container_path" data-value="/">/</span></p>'+
+						'<p>' + RLANG.folder + ': <span id="redactor_folder_container_path">/</span></p>'+
             '<div id="redactor_image_box"></div>' +
 					'</div>' +
 				'</form>' +
@@ -2442,43 +2442,33 @@ var RLANG = {
       }
     },
 		curPath:function(val){
-		  var $item = $("#redactor_folder_container_path");
 		  if(val){
         val = this.processPath(val)
-		    $item.data("value",val);
-        $item.text(val);
+		    this.$el.data("image-value",val);
+        $("#redactor_folder_container_path").text(val);
 		  } else{
-		    return this.processPath($item.data("value"));
+        return this.processPath(this.$el.data("image-value"));
 		  }
 		},
 		hookGetJson:function(path){
 		  var sep = path.indexOf("?")==-1 ? "?" : "&";
 		  return path + sep + "folder=" + this.curPath();
 		},
-    showFolders: function(){
-      if(this.opts.dirsGetJson !== false){
-        $.getJSON(this.hookGetJson(this.opts.dirsGetJson), $.proxy(function(data){
-          var $container = $('<div id="redactor_image_folders"/>');
-          var createLink = $.proxy(function(path, text){
-            var $link = $('<a href="javascript:void(0); data-value=' + path + '">');
-            $link.html('<div class="redactor_folder"><p class="redactor_folder_text">' + text + '</p></div>');
-            $link.click($.proxy(function(e){
-              e.preventDefault();
-              this.curPath( path);
-              this.imageHandler();
-            },this));
-            return $link;
-          }, this);
-          $container.append(createLink("/","..."));
-          $container.append(createLink(this.backCurPath(), "&lArr;"));
-          $.each(data, $.proxy(function(key,val){
-            var path = this.curPath() + val + "/";
-            $container.append(createLink(path, val));
-          }, this));
-          $container.append("<hr>");
-          $("#redactor_image_box").prepend($container)
-        }, this));
-      }
+    renderFolder__createLink : function(path, text){
+      var $link = $('<a href="javascript:void(0);" data-value="' + path + '">');
+      $link.html('<div class="redactor_folder"><p class="redactor_folder_text">' + text + '</p></div>');
+      $link.click($.proxy(function(e){
+        e.preventDefault();
+        this.curPath( path);
+        this.imageHandler();
+      },this));
+      return $link;
+    },
+    renderFolder: function(key, val, $separator){
+      if(val.type != "dir") return false;
+      var name = val.folderName || val.folder;
+      $separator.before(this.renderFolder__createLink(val.folder, name));
+      return true;
     },
     imageHandler: function()
     {
@@ -2491,6 +2481,7 @@ var RLANG = {
           var z = 0;
 
           // folders
+          /*
           $.each(data, $.proxy(function(key, val)
           {
             if (typeof val.folder !== 'undefined')
@@ -2500,10 +2491,17 @@ var RLANG = {
             }
 
           }, this));
-
+          */
+          $("#redactor_folder_container_path").text(this.curPath());
           var folderclass = false;
+          var $container = $('#redactor_image_box');
+          var $separator = $("<hr/>");
+          $container.prepend($separator);
+          $separator.before(this.renderFolder__createLink("/","..."));
+          $separator.before(this.renderFolder__createLink(this.backCurPath(), "&lArr;"));
           $.each(data, $.proxy(function(key, val)
           {
+            if( this.renderFolder(key, val, $separator)) return;
             // title
             var thumbtitle = '';
             if (typeof val.title !== 'undefined')
@@ -2594,7 +2592,6 @@ var RLANG = {
         }
       }
       $('#redactor_upload_btn').click($.proxy(this.imageUploadCallbackLink, this));
-      this.showFolders();
     },
 		showImage: function()
 		{
